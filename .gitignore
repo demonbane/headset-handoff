@@ -1,0 +1,26 @@
+# Local device selections and their atomic-write/backup files.
+/settings.json
+/settings.json.*
+
+# Runtime logs and private, machine-specific validation records.
+*.log
+*.log.*
+/validation/
+
+# Build outputs and editor state.
+*.exe
+*.dll
+*.pdb
+*.zip
+bin/
+obj/
+.vs/
+.vscode/
+*.user
+*.suo
+
+# Local scratch files.
+*.tmp
+*.bak
+Thumbs.db
+Desktop.ini

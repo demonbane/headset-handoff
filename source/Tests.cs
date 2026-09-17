@@ -32,6 +32,10 @@ class SelfTests {
         Check(!gate.Observe(null,5700) && gate.Stable==null,"Missing telemetry cancels any stale switch");
         Check(!gate.Observe(false,5800) && !gate.Observe(null,5900) && gate.Stable==null,"Uncertain disconnect cannot switch");
         Check(!gate.Observe(true,6000) && gate.Observe(true,7500),"Recovery requires a fresh stable observation");
+        Check(!ProcessLifetime.ShouldDetach(false,0),"Normal desktop launches stay in the same process");
+        Check(!ProcessLifetime.ShouldDetach(true,0x800),"Jobs without kill-on-close need no detachment");
+        Check(ProcessLifetime.ShouldDetach(true,0x2000),"Use the Windows broker for kill-on-close jobs without breakaway");
+        Check(ProcessLifetime.ShouldDetach(true,0x2800),"Detach from a kill-on-close launcher job");
         Console.WriteLine(count+" tests passed.");
     }
 }

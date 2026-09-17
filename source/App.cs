@@ -97,21 +97,21 @@ public sealed class TrayApp : ApplicationContext {
         startup.Click+=delegate { ToggleStartup(); }; menu.Items.Add(startup);
         var log=new ToolStripMenuItem("View activity log"); log.Click+=delegate { try { Process.Start(new ProcessStartInfo(AppLog.FilePath) { UseShellExecute=true }); } catch(Exception e) { ShowError(e); } }; menu.Items.Add(log);
         menu.Items.Add(new ToolStripSeparator());
-        var exit=new ToolStripMenuItem("Exit"); exit.Click+=delegate { ExitThread(); }; menu.Items.Add(exit);
+        var exit=new ToolStripMenuItem("Exit"); exit.Click+=delegate { AppLog.Write("Exit selected in tray"); ExitThread(); }; menu.Items.Add(exit);
         menu.Opening+=delegate { PopulateDevices(); RefreshStartup(); };
         tray.ContextMenuStrip=menu; tray.Visible=true;
         receiver=new Receiver(AppLog.Write);
         timer.Interval=250; timer.Tick+=delegate { Tick(); }; timer.Start();
         SystemEvents.PowerModeChanged+=PowerChanged;
         SystemEvents.SessionEnding+=SessionEnding;
-        AppLog.Write("Started Headset Handoff 1.0; automatic="+settings.Enabled+"; call audio="+settings.Communications);
+        AppLog.Write("Started Headset Handoff 1.0.1; automatic="+settings.Enabled+"; call audio="+settings.Communications);
     }
     void PowerChanged(object sender,PowerModeChangedEventArgs e) {
         // SystemEvents can run on a worker thread. Tick handles the resync request.
         if(e.Mode==PowerModes.Resume) Interlocked.Exchange(ref resumeRequested,1);
     }
     int resumeRequested;
-    void SessionEnding(object sender,SessionEndingEventArgs e) { quit.Set(); }
+    void SessionEnding(object sender,SessionEndingEventArgs e) { AppLog.Write("Windows session ending: "+e.Reason); quit.Set(); }
     void Resync() { state=new StateGate(1500); pending=true; retryAt=0; lastError=""; }
     void Save() { try { settings.Save(); } catch(Exception e) { ShowError(e); } }
     void ShowError(Exception e) { AppLog.Write("Error: "+e.Message); MessageBox.Show(e.Message,"Headset Handoff",MessageBoxButtons.OK,MessageBoxIcon.Error); }
@@ -142,7 +142,7 @@ public sealed class TrayApp : ApplicationContext {
     }
     void Tick() {
         if(closing) return;
-        if(quit.WaitOne(0)) { ExitThread(); return; }
+        if(quit.WaitOne(0)) { AppLog.Write("Exit signal received"); ExitThread(); return; }
         if(Interlocked.Exchange(ref resumeRequested,0)==1) { AppLog.Write("Windows resumed; waiting for fresh headset state"); receiver.Invalidate(); Resync(); }
         RadioSnapshot snapshot=receiver.Snapshot();
         long now=clock.ElapsedMilliseconds;
@@ -180,10 +180,13 @@ static class Program {
             try { using(var e=EventWaitHandle.OpenExisting("Local\\HeadsetHandoff.Stop")) e.Set(); } catch(WaitHandleCannotBeOpenedException) {}
             return;
         }
+        if(ProcessLifetime.TryDetach(Application.ExecutablePath,"--independent",Array.IndexOf(args,"--independent")>=0,AppLog.Write)) return;
         bool owner;
         using(var mutex=new Mutex(true,"Local\\HeadsetHandoff.SingleInstance",out owner)) {
-            if(!owner) return;
+            if(!owner) { AppLog.Write("Another instance is already running; duplicate launch exiting"); return; }
             try {
+                AppDomain.CurrentDomain.UnhandledException+=delegate(object sender,UnhandledExceptionEventArgs e) { AppLog.Write("Unhandled exception; terminating="+e.IsTerminating+": "+e.ExceptionObject); };
+                AppDomain.CurrentDomain.ProcessExit+=delegate { AppLog.Write("Process exiting; exitCode="+Environment.ExitCode); };
                 using(var quit=new EventWaitHandle(false,EventResetMode.ManualReset,"Local\\HeadsetHandoff.Stop")) {
                     quit.Reset(); Application.EnableVisualStyles(); Application.SetCompatibleTextRenderingDefault(false);
                     Settings settings=Settings.Load();

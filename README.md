@@ -56,6 +56,8 @@ Start at sign-in is off by default. Keep the executable in the same folder after
 .\HeadsetHandoff.exe --exit
 ```
 
+Startup runs when you **sign in**, not every time Windows wakes. If launched from a terminal or automation tool that would terminate its child processes when it closes, Headset Handoff relaunches through Windows' local process broker so it can keep running independently. Normal desktop and sign-in launches stay in the original process. If the broker cannot start the independent copy, the reason is logged and the original copy continues running.
+
 ## Switching behavior
 
 - Listens for wireless connection events and queries receiver status every three seconds.
@@ -84,9 +86,11 @@ Source layout:
 - `source/HidNative.cs`: Windows USB HID access.
 - `source/Audio.cs`: Windows audio endpoint enumeration and default selection.
 - `source/Tests.cs`: protocol and state-transition regression checks.
+- `source/ProcessLifetime.cs`: independent launch when a process runner imposes a kill-on-close lifetime.
+- `source/LifetimeTests.cs`: bounded child-process tests that reproduce launcher shutdown and verify survival after the fix.
 - `source/AudioProbe.cs`: read-only inspection of available playback devices and Windows defaults.
 
-The initial hardware validation confirmed both switching directions with GG and Sonar stopped, approximately 1.6–1.8 seconds after the receiver reported the change. Already-connected startup, controlled exit/restart, and duplicate-launch prevention were also checked. The 21 automated checks cover status parsing, malformed reports, Bluetooth isolation, unknown states, debounce, transient connections, and telemetry loss/recovery.
+The initial hardware validation confirmed both switching directions with GG and Sonar stopped, approximately 1.6–1.8 seconds after the receiver reported the change. Already-connected startup, controlled exit/restart, and duplicate-launch prevention were also checked. The 25 automated checks cover status parsing, malformed reports, Bluetooth isolation, unknown states, debounce, transient connections, telemetry loss/recovery, and launch policy. Additional Windows integration tests reproduce a child being terminated when its launcher job closes, then verify that an independent child survives and can still exit normally.
 
 Physical USB unplug/replug, Windows sleep/resume, and startup at sign-in have not yet been exercised. Offline and cable-charging status mappings are based on the protocol reference; the live states observed during initial testing were standby and connected.
 
